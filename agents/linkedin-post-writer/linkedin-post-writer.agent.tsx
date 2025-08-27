@@ -1,7 +1,7 @@
 import { Agent, webSearchTool } from "@openai/agents";
 import { linkedinPostWriterInstructions } from "./linked-in-post-writer.instructions";
 
-export const linkedinPostWriterAgent = new Agent({
+export const linkedinPostWriterAgent = Agent.create({
   name: "Linkedin Post Writer",
   tools: [webSearchTool()],
   handoffDescription:

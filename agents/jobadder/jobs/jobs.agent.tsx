@@ -1,10 +1,9 @@
 import { Agent } from "@openai/agents";
 
 import { jobadderInstructions } from "./jobs.instructions";
-import { linkedinPostWriterAgent } from "../../linkedin-post-writer/linkedin-post-writer.agent";
 import { getJobByIdTool, getJobsTool } from "@/agents/tools";
 
-export const jobadderJobsAgent = new Agent({
+export const jobadderJobsAgent = Agent.create({
   name: "Jobadder Jobs Agent",
   instructions: jobadderInstructions,
   tools: [getJobsTool, getJobByIdTool],
@@ -14,5 +13,4 @@ export const jobadderJobsAgent = new Agent({
     as for the job id.
     - A Job ID must be provided in the response.
     `,
-  handoffs: [linkedinPostWriterAgent],
 });

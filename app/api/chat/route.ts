@@ -3,6 +3,7 @@ import {
   Runner,
   AgentInputItem,
   user,
+  assistant,
 } from "@openai/agents";
 import { masterTriageAgent } from "@/agents/master-triage/master-triage.agent";
 import { conversationManager } from "@/lib/conversation-manager";
@@ -48,15 +49,21 @@ export async function POST(request: Request) {
             }
           );
 
+          // Collect the agent's response content as we stream it
+          let agentResponseContent = "";
+
           // Process streaming events for metadata (tools, handoffs, etc.)
           for await (const event of agentStream) {
             // Handle raw model stream events (direct from LLM)
             if (event.type === "raw_model_stream_event") {
               // Stream raw text data - using correct property name
               if (event.data.type === "output_text_delta") {
+                const deltaContent = event.data.delta || "";
+                agentResponseContent += deltaContent;
+                
                 const data = JSON.stringify({
                   type: "text_delta",
-                  content: event.data.delta || "",
+                  content: deltaContent,
                 });
                 controller.enqueue(`data: ${data}\n\n`);
               }
@@ -95,15 +102,18 @@ export async function POST(request: Request) {
             }
           }
 
-          // For streaming, save current input as the conversation history
-          conversationManager.updateSession(sessionId, currentInput);
+          // Create an assistant message with the actual response content we collected
+          const agentResponse = assistant(agentResponseContent.trim());
+          const historyToSave = [...currentInput, agentResponse];
+          
+          conversationManager.updateSession(sessionId, historyToSave);
 
           // Send completion signal with updated history
           const finalData = JSON.stringify({
             type: "final_result",
             content: "Response completed",
-            finalOutput: null, // Streaming doesn't provide final output
-            history: currentInput, // Use current input as updated history
+            finalOutput: null,
+            history: historyToSave,
             sessionId: sessionId,
           });
           controller.enqueue(`data: ${finalData}\n\n`);

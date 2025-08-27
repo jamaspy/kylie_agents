@@ -6,7 +6,7 @@ import {
   getCandidatesTool,
 } from "@/agents/tools";
 
-export const jobadderCandidatesAgent = new Agent({
+export const jobadderCandidatesAgent = Agent.create({
   name: "Jobadder Candidates Agent",
   instructions: candidateInstructions,
   tools: [
