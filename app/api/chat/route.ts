@@ -3,7 +3,6 @@ import {
   Runner,
   AgentInputItem,
   user,
-  assistant,
 } from "@openai/agents";
 import { masterTriageAgent } from "@/agents/master-triage/master-triage.agent";
 import { conversationManager } from "@/lib/conversation-manager";
@@ -27,11 +26,31 @@ export async function POST(request: Request) {
     const conversationHistory =
       history.length > 0 ? history : conversationManager.getHistory(sessionId);
 
+    console.log("📖 Loaded conversation history LENGTH:", conversationHistory.length);
+    console.log("📖 Loaded conversation history DETAILS:", JSON.stringify(conversationHistory.map((item: AgentInputItem) => ({
+      type: item.type,
+      role: (item as { role?: string }).role || 'n/a',
+      contentPreview: typeof (item as { content?: unknown }).content === 'string' 
+        ? ((item as { content: string }).content).substring(0, 200) + '...' 
+        : '[complex content]'
+    })), null, 2));
+    
+    console.log("💬 New user message:", message);
+    console.log("🔍 Session ID:", sessionId);
+
     // Build the input from history + new message
     const currentInput: AgentInputItem[] = [
       ...conversationHistory,
       user(message),
     ];
+
+    console.log("🎯 Complete input being sent to agent:", JSON.stringify(currentInput.map((item: AgentInputItem) => ({
+      type: item.type,
+      role: (item as { role?: string }).role || 'n/a',
+      contentPreview: typeof (item as { content?: unknown }).content === 'string' 
+        ? ((item as { content: string }).content).substring(0, 100) + '...' 
+        : '[complex content]'
+    })), null, 2));
 
     // Create a ReadableStream for Server-Sent Events
     const stream = new ReadableStream({
@@ -49,9 +68,6 @@ export async function POST(request: Request) {
             }
           );
 
-          // Collect the agent's response content as we stream it
-          let agentResponseContent = "";
-
           // Process streaming events for metadata (tools, handoffs, etc.)
           for await (const event of agentStream) {
             // Handle raw model stream events (direct from LLM)
@@ -59,7 +75,6 @@ export async function POST(request: Request) {
               // Stream raw text data - using correct property name
               if (event.data.type === "output_text_delta") {
                 const deltaContent = event.data.delta || "";
-                agentResponseContent += deltaContent;
                 
                 const data = JSON.stringify({
                   type: "text_delta",
@@ -102,9 +117,35 @@ export async function POST(request: Request) {
             }
           }
 
-          // Create an assistant message with the actual response content we collected
-          const agentResponse = assistant(agentResponseContent.trim());
-          const historyToSave = [...currentInput, agentResponse];
+          // After streaming completes, run the agent again (non-streaming) to get proper result.history
+          // This ensures we capture the complete conversation context including handoff states
+          console.log("🔍 Running non-streaming to capture proper history...");
+          console.log("🔍 Input to non-streaming run:", JSON.stringify(currentInput.map((item: AgentInputItem) => ({
+            type: item.type,
+            role: (item as { role?: string }).role || 'n/a',
+            contentPreview: typeof (item as { content?: unknown }).content === 'string' 
+              ? ((item as { content: string }).content).substring(0, 100) + '...' 
+              : '[complex content]'
+          })), null, 2));
+          
+          const result = await runner.run(masterTriageAgent, currentInput, {
+            stream: false,
+          });
+
+          console.log("📊 Result from non-streaming run:");
+          console.log("📊 result.output:", typeof result.output, result.output ? "exists" : "null");
+          console.log("📊 result.history.length:", result.history.length);
+          
+          // Use the proper result.history from the SDK (includes all agent outputs and context)
+          const historyToSave = result.history;
+          
+          console.log("📚 Conversation history being saved:", JSON.stringify(historyToSave.map((item: AgentInputItem) => ({
+            type: item.type,
+            role: (item as { role?: string }).role || 'n/a',
+            contentPreview: typeof (item as { content?: unknown }).content === 'string' 
+              ? ((item as { content: string }).content).substring(0, 100) + '...' 
+              : '[complex content]'
+          })), null, 2));
           
           conversationManager.updateSession(sessionId, historyToSave);
 

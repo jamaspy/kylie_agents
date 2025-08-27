@@ -4,6 +4,7 @@ import { jobadderJobsAgent } from "../jobadder/jobs";
 import { jobadderCandidatesAgent } from "../jobadder/candidates";
 import { linkedinPostWriterAgent } from "../linkedin-post-writer";
 
+// SHORT AGENT
 export const masterTriageAgent = Agent.create({
   name: "Master Triage",
   instructions: masterTriageInstructions,

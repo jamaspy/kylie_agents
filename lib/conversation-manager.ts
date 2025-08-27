@@ -47,10 +47,21 @@ class ConversationManager {
    * Update session history after agent run
    */
   updateSession(sessionId: string, newHistory: AgentInputItem[]): void {
+    console.log(`💾 ConversationManager.updateSession(${sessionId}): Saving ${newHistory.length} items`);
     const session = this.sessions.get(sessionId);
     if (session) {
       session.history = newHistory;
       session.lastUpdated = new Date();
+      console.log(`💾 Session updated successfully. Total items: ${session.history.length}`);
+    } else {
+      console.log(`❌ Session ${sessionId} not found! Creating new session...`);
+      this.createSession(sessionId);
+      const newSession = this.sessions.get(sessionId);
+      if (newSession) {
+        newSession.history = newHistory;
+        newSession.lastUpdated = new Date();
+        console.log(`💾 New session created and updated with ${newHistory.length} items`);
+      }
     }
   }
 
@@ -59,7 +70,10 @@ class ConversationManager {
    */
   getHistory(sessionId: string): AgentInputItem[] {
     const session = this.sessions.get(sessionId);
-    return session?.history || [];
+    const history = session?.history || [];
+    console.log(`🔍 ConversationManager.getHistory(${sessionId}): Found ${history.length} items`);
+    console.log(`🔍 Session exists: ${!!session}, Available sessions: ${Array.from(this.sessions.keys())}`);
+    return history;
   }
 
   /**
